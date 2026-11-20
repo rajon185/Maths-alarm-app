@@ -12,15 +12,29 @@ android {
         applicationId = "com.mathsalarm.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // The release workflow passes these in (-PappVersionName=1.2.3 -PappVersionCode=10203).
+        versionCode = providers.gradleProperty("appVersionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("appVersionName").orNull ?: "1.0"
+    }
+
+    // Optional real signing key, supplied by CI. Without it, release builds use the debug key.
+    val keystorePath = System.getenv("SIGNING_KEYSTORE_FILE")
+    signingConfigs {
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("SIGNING_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key so the release APK can be sideloaded directly.
-            signingConfig = signingConfigs.getByName("debug")
+            // Signed with the debug key (unless a release key is supplied) so the APK can be sideloaded directly.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {

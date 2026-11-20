@@ -71,10 +71,13 @@ fun AlarmEditScreen(
     onCancel: () -> Unit,
     onSave: (alarm: Alarm, test: Boolean) -> Unit,
     onDelete: () -> Unit,
+    onDuplicate: (Alarm) -> Unit,
+    isDuplicate: Boolean = false,
 ) {
     var alarm by remember(initial) { mutableStateOf(initial) }
-    var showTimePicker by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    // A duplicate is almost always made to change the time, so open the picker straight away.
+    var showTimePicker by remember(initial) { mutableStateOf(isDuplicate) }
+    var confirmDelete by remember(initial) { mutableStateOf(false) }
     val context = LocalContext.current
 
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -87,10 +90,13 @@ fun AlarmEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isNew) "New alarm" else "Edit alarm") },
+                title = { Text(if (isDuplicate) "Duplicate alarm" else if (isNew) "New alarm" else "Edit alarm") },
                 navigationIcon = { IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, "Cancel") } },
                 actions = {
-                    if (!isNew) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Delete") }
+                    if (!isNew) {
+                        TextButton(onClick = { onDuplicate(alarm) }) { Text("Duplicate") }
+                        IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Delete") }
+                    }
                 },
             )
         },

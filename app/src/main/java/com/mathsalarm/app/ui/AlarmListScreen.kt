@@ -1,7 +1,8 @@
 package com.mathsalarm.app.ui
 
 import android.text.format.DateFormat
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -29,6 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +53,7 @@ fun AlarmListScreen(
     issues: List<SetupIssue>,
     onAdd: () -> Unit,
     onEdit: (Alarm) -> Unit,
+    onDuplicate: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
 ) {
     Scaffold(
@@ -77,7 +85,12 @@ fun AlarmListScreen(
                 }
             }
             items(alarms, key = { it.id }) { alarm ->
-                AlarmCard(alarm, onClick = { onEdit(alarm) }, onToggle = { onToggle(alarm, it) })
+                AlarmCard(
+                    alarm,
+                    onClick = { onEdit(alarm) },
+                    onDuplicate = { onDuplicate(alarm) },
+                    onToggle = { onToggle(alarm, it) },
+                )
             }
         }
     }
@@ -111,34 +124,43 @@ fun formatTime(hour: Int, minute: Int): String {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onDuplicate: () -> Unit, onToggle: (Boolean) -> Unit) {
     val dim = if (alarm.enabled) 1f else 0.5f
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    formatTime(alarm.hour, alarm.minute),
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Light,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim),
-                )
-                val title = listOfNotNull(alarm.label.ifBlank { null }, alarm.days.daysSummary()).joinToString(" · ")
-                Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim))
-                Spacer(Modifier.height(4.dp))
-                val types = alarm.problemTypes.sortedBy { it.ordinal }.joinToString(", ") { it.label }
-                val snooze = when {
-                    !alarm.snoozeEnabled -> "no snooze"
-                    alarm.maxSnoozes == 0 -> "snooze ${alarm.snoozeMinutes} min"
-                    else -> "snooze ${alarm.snoozeMinutes} min ×${alarm.maxSnoozes}"
+    var menuOpen by remember { mutableStateOf(false) }
+    // Long-press opens a small menu; the Box anchors it to the card.
+    Box {
+        Card(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        formatTime(alarm.hour, alarm.minute),
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Light,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim),
+                    )
+                    val title = listOfNotNull(alarm.label.ifBlank { null }, alarm.days.daysSummary()).joinToString(" · ")
+                    Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim))
+                    Spacer(Modifier.height(4.dp))
+                    val types = alarm.problemTypes.sortedBy { it.ordinal }.joinToString(", ") { it.label }
+                    val snooze = when {
+                        !alarm.snoozeEnabled -> "no snooze"
+                        alarm.maxSnoozes == 0 -> "snooze ${alarm.snoozeMinutes} min"
+                        else -> "snooze ${alarm.snoozeMinutes} min ×${alarm.maxSnoozes}"
+                    }
+                    Text(
+                        "${alarm.problemCount} × $types · ${alarm.difficulty.label} · $snooze",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = dim),
+                    )
                 }
-                Text(
-                    "${alarm.problemCount} × $types · ${alarm.difficulty.label} · $snooze",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = dim),
-                )
+                Switch(checked = alarm.enabled, onCheckedChange = onToggle)
             }
-            Switch(checked = alarm.enabled, onCheckedChange = onToggle)
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onClick() })
+            DropdownMenuItem(text = { Text("Duplicate") }, onClick = { menuOpen = false; onDuplicate() })
         }
     }
 }

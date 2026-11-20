@@ -12,6 +12,13 @@ object RingingState {
     private val _silencedUntil = MutableStateFlow(0L)
     val silencedUntil: StateFlow<Long> = _silencedUntil
 
-    internal fun setRinging(id: Int?) { _ringingAlarmId.value = id }
+    /** True when the ringing alarm was started with "Save & test" rather than by the schedule. */
+    private val _isTest = MutableStateFlow(false)
+    val isTest: StateFlow<Boolean> = _isTest
+
+    internal fun setRinging(id: Int?, test: Boolean = false) {
+        _ringingAlarmId.value = id
+        _isTest.value = id != null && test
+    }
     internal fun setSilencedUntil(t: Long) { _silencedUntil.value = t }
 }

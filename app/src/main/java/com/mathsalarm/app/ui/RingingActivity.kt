@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -96,13 +97,16 @@ class RingingActivity : ComponentActivity() {
         setContent {
             MathsAlarmTheme(forceDark = true) {
                 val ringing by RingingState.ringingAlarmId.collectAsState()
+                val isTest by RingingState.isTest.collectAsState()
                 LaunchedEffect(ringing) { if (ringing == null) finish() }
                 BackHandler { /* The alarm can't be escaped with the back button. */ }
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RingingScreen(
                         alarm = alarm,
+                        isTest = isTest,
                         onSnooze = { snooze(alarm) },
-                        onSolved = { dismiss(alarm) },
+                        onSolved = { if (isTest) endTest() else dismiss(alarm) },
+                        onCancelTest = { endTest() },
                         onSilence = { AlarmService.silence(this, alarm.silenceSeconds * 1000L) },
                     )
                 }
@@ -128,6 +132,12 @@ class RingingActivity : ComponentActivity() {
         finish()
     }
 
+    /** Ends a test ring without touching the real alarm's snooze state. */
+    private fun endTest() {
+        AlarmService.stop(this)
+        finish()
+    }
+
     private fun dismiss(alarm: Alarm) {
         AlarmStore.setSnoozeCount(alarm.id, 0)
         AlarmScheduler.cancelSnooze(this, alarm.id)
@@ -139,8 +149,10 @@ class RingingActivity : ComponentActivity() {
 @Composable
 private fun RingingScreen(
     alarm: Alarm,
+    isTest: Boolean,
     onSnooze: () -> Unit,
     onSolved: () -> Unit,
+    onCancelTest: () -> Unit,
     onSilence: () -> Unit,
 ) {
     var solving by remember { mutableStateOf(false) }
@@ -168,6 +180,9 @@ private fun RingingScreen(
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (isTest) {
+            TextButton(onClick = onCancelTest) { Text("Test mode — cancel test") }
+        }
 
         if (!solving) {
             Spacer(Modifier.weight(1f))
@@ -212,17 +227,24 @@ private fun RingingScreen(
                             }
                             true
                         } else {
-                            if (problem.type == ProblemType.TYPING) {
-                                feedback = "Not quite — check it carefully and try again."
+                            // Stay on the same problem; the user can skip it if they're stuck.
+                            feedback = if (problem.type == ProblemType.TYPING) {
+                                "Not quite — check it carefully and try again."
                             } else {
-                                feedback = "Wrong — here's a new one."
-                                problem = ProblemGenerator.generate(alarm.problemTypes, alarm.difficulty)
+                                "Wrong — try again, or skip to a different problem."
                             }
                             false
                         }
                     },
                 ) }
             }
+            TextButton(
+                onClick = {
+                    feedback = null
+                    round += 1
+                    problem = ProblemGenerator.generate(alarm.problemTypes, alarm.difficulty)
+                },
+            ) { Text("Skip — give me a different problem") }
             if (canSnooze) SnoozeButton(alarm, true, snoozesLeft, onSnooze)
         }
     }

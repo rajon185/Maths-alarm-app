@@ -38,11 +38,13 @@ class AlarmService : Service() {
         private const val ACTION_SILENCE = "com.mathsalarm.app.SILENCE"
         private const val ACTION_STOP = "com.mathsalarm.app.STOP"
         private const val EXTRA_SILENCE_MS = "silence_ms"
+        private const val EXTRA_TEST = "test"
 
-        fun start(context: Context, alarmId: Int) {
+        fun start(context: Context, alarmId: Int, test: Boolean = false) {
             val intent = Intent(context, AlarmService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(AlarmScheduler.EXTRA_ALARM_ID, alarmId)
+                .putExtra(EXTRA_TEST, test)
             ContextCompat.startForegroundService(context, intent)
         }
 
@@ -90,7 +92,7 @@ class AlarmService : Service() {
                     stopEverything()
                     return START_NOT_STICKY
                 }
-                startRinging(alarm)
+                startRinging(alarm, intent.getBooleanExtra(EXTRA_TEST, false))
             }
             ACTION_SILENCE -> {
                 if (currentAlarm != null) silenceFor(intent.getLongExtra(EXTRA_SILENCE_MS, 30_000L))
@@ -106,12 +108,12 @@ class AlarmService : Service() {
         ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
     }
 
-    private fun startRinging(alarm: Alarm) {
+    private fun startRinging(alarm: Alarm, test: Boolean) {
         stopSound()
         handler.removeCallbacks(resumeRunnable)
         currentAlarm = alarm
         RingingState.setSilencedUntil(0L)
-        RingingState.setRinging(alarm.id)
+        RingingState.setRinging(alarm.id, test)
         startInForeground(buildNotification(alarm))
         acquireWakeLock()
         playSound(alarm)

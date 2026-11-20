@@ -54,6 +54,13 @@ class MainActivity : ComponentActivity() {
             MathsAlarmTheme {
                 val alarms by AlarmStore.alarms.collectAsState()
                 var editing by remember { mutableStateOf<Alarm?>(null) }
+                var duplicating by remember { mutableStateOf(false) }
+                fun openEditor(alarm: Alarm?, duplicate: Boolean = false) {
+                    editing = alarm
+                    duplicating = duplicate
+                }
+                // A duplicate is a brand-new alarm (id -1) carrying all the source alarm's settings.
+                fun duplicate(source: Alarm) = openEditor(source.copy(id = -1, enabled = true), duplicate = true)
                 val currentIssues by issues
 
                 val editor = editing
@@ -61,27 +68,30 @@ class MainActivity : ComponentActivity() {
                     AlarmListScreen(
                         alarms = alarms,
                         issues = currentIssues,
-                        onAdd = { editing = Alarm(id = -1) },
-                        onEdit = { editing = it },
+                        onAdd = { openEditor(Alarm(id = -1)) },
+                        onEdit = { openEditor(it) },
+                        onDuplicate = { duplicate(it) },
                         onToggle = { alarm, on -> setEnabled(alarm, on) },
                     )
                 } else {
-                    BackHandler { editing = null }
+                    BackHandler { openEditor(null) }
                     AlarmEditScreen(
                         initial = editor,
                         isNew = editor.id < 0,
-                        onCancel = { editing = null },
+                        isDuplicate = duplicating,
+                        onCancel = { openEditor(null) },
+                        onDuplicate = { duplicate(it) },
                         onSave = { saved, test ->
                             val stored = saveAlarm(saved)
-                            editing = null
-                            if (test) AlarmService.start(this, stored.id)
+                            openEditor(null)
+                            if (test) AlarmService.start(this, stored.id, test = true)
                         },
                         onDelete = {
                             if (editor.id >= 0) {
                                 AlarmScheduler.cancel(this, editor.id)
                                 AlarmStore.delete(editor.id)
                             }
-                            editing = null
+                            openEditor(null)
                         },
                     )
                 }
