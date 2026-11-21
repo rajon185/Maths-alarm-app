@@ -39,7 +39,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,15 +118,40 @@ private fun IssueCard(issue: SetupIssue) {
     }
 }
 
+/**
+ * A large clock-style time. In 12-hour mode the AM/PM is drawn smaller beside the digits, and the
+ * text never wraps, so big sizes can't spill onto a second (overlapping) line.
+ */
 @Composable
-fun formatTime(hour: Int, minute: Int): String {
+fun TimeText(
+    hour: Int,
+    minute: Int,
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontWeight: FontWeight = FontWeight.Light,
+) {
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
-    return if (is24) {
-        "%02d:%02d".format(hour, minute)
-    } else {
-        val h = if (hour % 12 == 0) 12 else hour % 12
-        "%d:%02d %s".format(h, minute, if (hour < 12) "AM" else "PM")
+    val text = buildAnnotatedString {
+        if (is24) {
+            append("%02d:%02d".format(hour, minute))
+        } else {
+            append("%d:%02d".format(if (hour % 12 == 0) 12 else hour % 12, minute))
+            withStyle(SpanStyle(fontSize = fontSize * 0.4f, fontWeight = FontWeight.Normal)) {
+                append(if (hour < 12) " AM" else " PM")
+            }
+        }
     }
+    Text(
+        text,
+        modifier = modifier,
+        color = color,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        lineHeight = fontSize * 1.15f,
+        maxLines = 1,
+        softWrap = false,
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -134,10 +164,10 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onDuplicate: () -> Unit
         Card(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        formatTime(alarm.hour, alarm.minute),
+                    TimeText(
+                        alarm.hour,
+                        alarm.minute,
                         fontSize = 40.sp,
-                        fontWeight = FontWeight.Light,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = dim),
                     )
                     val title = listOfNotNull(alarm.label.ifBlank { null }, alarm.days.daysSummary()).joinToString(" · ")

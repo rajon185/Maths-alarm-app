@@ -111,10 +111,10 @@ fun AlarmEditScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // ---- time
-            Text(
-                formatTime(alarm.hour, alarm.minute),
+            TimeText(
+                alarm.hour,
+                alarm.minute,
                 fontSize = 64.sp,
-                fontWeight = FontWeight.Light,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -253,6 +253,11 @@ fun AlarmEditScreen(
                     Text(ringtoneTitle, color = MaterialTheme.colorScheme.primary)
                 }
                 SwitchRow("Vibrate", alarm.vibrate) { alarm = alarm.copy(vibrate = it) }
+                SwitchRow("Full volume", alarm.raiseVolume) { alarm = alarm.copy(raiseVolume = it) }
+                Hint(
+                    if (alarm.raiseVolume) "Turns the phone's alarm volume to maximum when this alarm rings, then puts it back once it stops."
+                    else "Rings at the phone's current alarm volume.",
+                )
             }
 
             Row(

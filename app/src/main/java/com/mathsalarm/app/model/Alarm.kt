@@ -41,6 +41,8 @@ data class Alarm(
     /** How long the alarm goes quiet while you solve, in seconds. */
     val silenceSeconds: Int = 30,
     val vibrate: Boolean = true,
+    /** Turn the phone's alarm volume to maximum while ringing (and restore it afterwards). */
+    val raiseVolume: Boolean = true,
     /** null = system default alarm sound. */
     val ringtoneUri: String? = null,
 ) {
@@ -61,6 +63,7 @@ data class Alarm(
         put("maxSnoozes", maxSnoozes)
         put("silenceSeconds", silenceSeconds)
         put("vibrate", vibrate)
+        put("raiseVolume", raiseVolume)
         if (ringtoneUri != null) put("ringtoneUri", ringtoneUri)
     }
 
@@ -85,6 +88,7 @@ data class Alarm(
                 maxSnoozes = o.optInt("maxSnoozes", 3),
                 silenceSeconds = o.optInt("silenceSeconds", 30),
                 vibrate = o.optBoolean("vibrate", true),
+                raiseVolume = o.optBoolean("raiseVolume", true),
                 ringtoneUri = if (o.has("ringtoneUri")) o.getString("ringtoneUri") else null,
             )
         }

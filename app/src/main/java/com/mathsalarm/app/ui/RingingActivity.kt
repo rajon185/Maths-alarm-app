@@ -2,6 +2,7 @@ package com.mathsalarm.app.ui
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -85,6 +86,8 @@ class RingingActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         showOverLockScreen()
+        // Make the hardware volume buttons adjust the alarm sound itself while this screen is up.
+        volumeControlStream = AudioManager.STREAM_ALARM
         AlarmStore.init(this)
 
         val alarmId = RingingState.ringingAlarmId.value
@@ -257,10 +260,10 @@ private fun Clock(big: Boolean) {
         while (true) { now = LocalTime.now(); delay(1000) }
     }
     val size by animateFloatAsState(if (big) 84f else 40f, tween(300), label = "clock")
-    Text(
-        formatTime(now.hour, now.minute),
+    TimeText(
+        now.hour,
+        now.minute,
         fontSize = size.sp,
-        fontWeight = FontWeight.Light,
         modifier = Modifier.padding(top = if (big) 48.dp else 4.dp),
     )
 }

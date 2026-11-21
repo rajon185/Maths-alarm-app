@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
@@ -76,6 +77,9 @@ class AlarmService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var currentAlarm: Alarm? = null
+    /** Alarm-stream volume before we raised it, and the level we set; null when we haven't changed it. */
+    private var savedVolume: Int? = null
+    private var raisedVolume: Int? = null
     private val resumeRunnable = Runnable { resumeRinging() }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -116,6 +120,7 @@ class AlarmService : Service() {
         RingingState.setRinging(alarm.id, test)
         startInForeground(buildNotification(alarm))
         acquireWakeLock()
+        raiseToMaxVolume(alarm)
         playSound(alarm)
         if (alarm.vibrate) startVibration()
         // Try to bring up the screen directly; when not allowed the full-screen notification does it.
@@ -174,6 +179,33 @@ class AlarmService : Service() {
         }
     }
 
+    private fun raiseToMaxVolume(alarm: Alarm) {
+        if (!alarm.raiseVolume) return
+        val audio = getSystemService(AudioManager::class.java)
+        val target = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        val current = audio.getStreamVolume(AudioManager.STREAM_ALARM)
+        if (current >= target) return
+        try {
+            audio.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+            // Keep the original level if we already raised it for an earlier ring in this session.
+            if (savedVolume == null) savedVolume = current
+            raisedVolume = target
+        } catch (_: SecurityException) {
+            // Some Do Not Disturb states refuse volume changes; ring at the current level instead.
+        }
+    }
+
+    private fun restoreVolume() {
+        val original = savedVolume ?: return
+        val audio = getSystemService(AudioManager::class.java)
+        // Only put it back if the user hasn't adjusted the volume themselves while it was ringing.
+        if (audio.getStreamVolume(AudioManager.STREAM_ALARM) == raisedVolume) {
+            try { audio.setStreamVolume(AudioManager.STREAM_ALARM, original, 0) } catch (_: SecurityException) {}
+        }
+        savedVolume = null
+        raisedVolume = null
+    }
+
     private fun startVibration() {
         val v = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             getSystemService(VibratorManager::class.java).defaultVibrator
@@ -206,6 +238,7 @@ class AlarmService : Service() {
     private fun stopEverything() {
         handler.removeCallbacks(resumeRunnable)
         stopSound()
+        restoreVolume()
         currentAlarm = null
         RingingState.setSilencedUntil(0L)
         RingingState.setRinging(null)
@@ -218,6 +251,7 @@ class AlarmService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(resumeRunnable)
         stopSound()
+        restoreVolume()
         RingingState.setRinging(null)
         RingingState.setSilencedUntil(0L)
         wakeLock?.let { if (it.isHeld) it.release() }

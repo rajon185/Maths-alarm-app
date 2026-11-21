@@ -1,9 +1,10 @@
-name: Build APK
+name: Build check
 
+# Checks that pull requests into main compile and pass tests. No APK is uploaded;
+# use the Release workflow to publish an APK.
 on:
-  push:
   pull_request:
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
   build:
@@ -21,13 +22,5 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Build APKs
-        run: ./gradlew --no-daemon assembleDebug assembleRelease
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: maths-alarm-apk
-          path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/debug/app-debug.apk
+      - name: Build
+        run: ./gradlew --no-daemon assembleRelease
