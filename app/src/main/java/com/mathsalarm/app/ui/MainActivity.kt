@@ -25,6 +25,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.mathsalarm.app.alarm.AlarmScheduler
 import com.mathsalarm.app.alarm.AlarmService
+import com.mathsalarm.app.alarm.skipNext
+import com.mathsalarm.app.alarm.skippedOccurrence
 import com.mathsalarm.app.alarm.timeUntilText
 import com.mathsalarm.app.data.AlarmStore
 import com.mathsalarm.app.model.Alarm
@@ -72,6 +74,8 @@ class MainActivity : ComponentActivity() {
                         onEdit = { openEditor(it) },
                         onDuplicate = { duplicate(it) },
                         onToggle = { alarm, on -> setEnabled(alarm, on) },
+                        onSkip = { skip(it) },
+                        onUndoSkip = { undoSkip(it) },
                     )
                 } else {
                     BackHandler { openEditor(null) }
@@ -100,7 +104,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveAlarm(alarm: Alarm): Alarm {
-        val toStore = if (alarm.id < 0) alarm.copy(id = AlarmStore.newId(), enabled = true) else alarm.copy(enabled = true)
+        // Editing an alarm cancels any skip: the schedule it referred to may have changed.
+        val toStore = if (alarm.id < 0) {
+            alarm.copy(id = AlarmStore.newId(), enabled = true, skippedTrigger = null)
+        } else {
+            alarm.copy(enabled = true, skippedTrigger = null)
+        }
         AlarmStore.save(toStore)
         AlarmScheduler.cancelSnooze(this, toStore.id)
         val trigger = AlarmScheduler.schedule(this, toStore)
@@ -109,13 +118,36 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setEnabled(alarm: Alarm, on: Boolean) {
-        val updated = alarm.copy(enabled = on)
+        val updated = alarm.copy(enabled = on, skippedTrigger = null)
         AlarmStore.save(updated)
         if (on) {
             AlarmScheduler.schedule(this, updated)?.let { toast(timeUntilText(ZonedDateTime.now(), it)) }
         } else {
             AlarmScheduler.cancel(this, alarm.id)
         }
+    }
+
+    private fun skip(alarm: Alarm) {
+        if (!alarm.enabled) return
+        val now = ZonedDateTime.now()
+        val updated = skipNext(alarm, now)
+        AlarmStore.save(updated)
+        if (updated.enabled) {
+            val skipped = skippedOccurrence(updated, now)
+            val trigger = AlarmScheduler.schedule(this, updated)
+            val what = skipped?.format(SKIP_DAY_FORMAT)?.let { "Skipping $it. " }.orEmpty()
+            if (trigger != null) toast(what + timeUntilText(now, trigger))
+        } else {
+            // One-time alarm: skipping its only ring turns it off.
+            AlarmScheduler.cancel(this, alarm.id)
+            toast("Alarm skipped and turned off")
+        }
+    }
+
+    private fun undoSkip(alarm: Alarm) {
+        val updated = alarm.copy(skippedTrigger = null)
+        AlarmStore.save(updated)
+        AlarmScheduler.schedule(this, updated)?.let { toast(timeUntilText(ZonedDateTime.now(), it)) }
     }
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()

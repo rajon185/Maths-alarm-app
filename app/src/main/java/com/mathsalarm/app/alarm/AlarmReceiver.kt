@@ -16,9 +16,12 @@ class AlarmReceiver : BroadcastReceiver() {
         if (!isSnooze) {
             if (!alarm.enabled) return
             if (alarm.isRepeating) {
-                AlarmScheduler.schedule(context, alarm)
+                // Any skip referred to an earlier occurrence, so it is used up now.
+                val updated = alarm.copy(skippedTrigger = null)
+                if (alarm.skippedTrigger != null) AlarmStore.save(updated)
+                AlarmScheduler.schedule(context, updated)
             } else {
-                AlarmStore.save(alarm.copy(enabled = false))
+                AlarmStore.save(alarm.copy(enabled = false, skippedTrigger = null))
             }
             // A fresh ring starts a fresh snooze budget.
             AlarmStore.setSnoozeCount(id, 0)
