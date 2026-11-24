@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -48,8 +49,14 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mathsalarm.app.alarm.skippedOccurrence
 import com.mathsalarm.app.model.Alarm
 import com.mathsalarm.app.model.daysSummary
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+
+/** e.g. "Wed 25 Nov". */
+val SKIP_DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +67,8 @@ fun AlarmListScreen(
     onEdit: (Alarm) -> Unit,
     onDuplicate: (Alarm) -> Unit,
     onToggle: (Alarm, Boolean) -> Unit,
+    onSkip: (Alarm) -> Unit,
+    onUndoSkip: (Alarm) -> Unit,
 ) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("Maths Alarm") }) },
@@ -95,6 +104,8 @@ fun AlarmListScreen(
                     onClick = { onEdit(alarm) },
                     onDuplicate = { onDuplicate(alarm) },
                     onToggle = { onToggle(alarm, it) },
+                    onSkip = { onSkip(alarm) },
+                    onUndoSkip = { onUndoSkip(alarm) },
                 )
             }
         }
@@ -156,9 +167,17 @@ fun TimeText(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onDuplicate: () -> Unit, onToggle: (Boolean) -> Unit) {
+private fun AlarmCard(
+    alarm: Alarm,
+    onClick: () -> Unit,
+    onDuplicate: () -> Unit,
+    onToggle: (Boolean) -> Unit,
+    onSkip: () -> Unit,
+    onUndoSkip: () -> Unit,
+) {
     val dim = if (alarm.enabled) 1f else 0.5f
     var menuOpen by remember { mutableStateOf(false) }
+    val skipped = if (alarm.enabled) skippedOccurrence(alarm, ZonedDateTime.now()) else null
     // Long-press opens a small menu; the Box anchors it to the card.
     Box {
         Card(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })) {
@@ -184,6 +203,23 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onDuplicate: () -> Unit
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = dim),
                     )
+                    if (alarm.enabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (skipped != null) {
+                                Text(
+                                    "Skipping ${skipped.format(SKIP_DAY_FORMAT)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                TextButton(onClick = onUndoSkip) { Text("Undo") }
+                            } else {
+                                TextButton(onClick = onSkip, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                                    Text("Skip next")
+                                }
+                            }
+                        }
+                    }
                 }
                 Switch(checked = alarm.enabled, onCheckedChange = onToggle)
             }
@@ -191,6 +227,13 @@ private fun AlarmCard(alarm: Alarm, onClick: () -> Unit, onDuplicate: () -> Unit
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text("Edit") }, onClick = { menuOpen = false; onClick() })
             DropdownMenuItem(text = { Text("Duplicate") }, onClick = { menuOpen = false; onDuplicate() })
+            if (alarm.enabled) {
+                if (skipped != null) {
+                    DropdownMenuItem(text = { Text("Undo skip") }, onClick = { menuOpen = false; onUndoSkip() })
+                } else {
+                    DropdownMenuItem(text = { Text("Skip next alarm") }, onClick = { menuOpen = false; onSkip() })
+                }
+            }
         }
     }
 }

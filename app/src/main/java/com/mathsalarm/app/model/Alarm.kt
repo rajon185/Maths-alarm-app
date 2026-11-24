@@ -45,6 +45,11 @@ data class Alarm(
     val raiseVolume: Boolean = true,
     /** null = system default alarm sound. */
     val ringtoneUri: String? = null,
+    /**
+     * Epoch millis of one upcoming occurrence the user chose to skip, or null. Only that exact
+     * occurrence is skipped; later ones ring as normal.
+     */
+    val skippedTrigger: Long? = null,
 ) {
     val isRepeating: Boolean get() = days.isNotEmpty()
 
@@ -65,6 +70,7 @@ data class Alarm(
         put("vibrate", vibrate)
         put("raiseVolume", raiseVolume)
         if (ringtoneUri != null) put("ringtoneUri", ringtoneUri)
+        if (skippedTrigger != null) put("skippedTrigger", skippedTrigger)
     }
 
     companion object {
@@ -90,6 +96,7 @@ data class Alarm(
                 vibrate = o.optBoolean("vibrate", true),
                 raiseVolume = o.optBoolean("raiseVolume", true),
                 ringtoneUri = if (o.has("ringtoneUri")) o.getString("ringtoneUri") else null,
+                skippedTrigger = if (o.has("skippedTrigger")) o.getLong("skippedTrigger") else null,
             )
         }
     }

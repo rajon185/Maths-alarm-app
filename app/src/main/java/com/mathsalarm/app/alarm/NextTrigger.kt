@@ -3,8 +3,35 @@ package com.mathsalarm.app.alarm
 import com.mathsalarm.app.model.Alarm
 import java.time.ZonedDateTime
 
-/** Pure calculation of the next time [alarm] should ring after [now]. */
+/**
+ * Pure calculation of the next time [alarm] should ring after [now], honouring a skipped
+ * occurrence ([Alarm.skippedTrigger]).
+ */
 fun nextTrigger(alarm: Alarm, now: ZonedDateTime): ZonedDateTime {
+    val next = nextOccurrence(alarm, now)
+    return if (alarm.skippedTrigger == next.toInstant().toEpochMilli()) nextOccurrence(alarm, next) else next
+}
+
+/** The occurrence that is currently being skipped, or null if none (or it has already passed). */
+fun skippedOccurrence(alarm: Alarm, now: ZonedDateTime): ZonedDateTime? {
+    val skipped = alarm.skippedTrigger ?: return null
+    val next = nextOccurrence(alarm, now)
+    return if (next.toInstant().toEpochMilli() == skipped) next else null
+}
+
+/**
+ * Returns [alarm] with its next occurrence skipped. A one-time alarm has nothing after its next
+ * occurrence, so skipping it simply turns it off.
+ */
+fun skipNext(alarm: Alarm, now: ZonedDateTime): Alarm =
+    if (alarm.isRepeating) {
+        alarm.copy(skippedTrigger = nextOccurrence(alarm, now).toInstant().toEpochMilli())
+    } else {
+        alarm.copy(enabled = false, skippedTrigger = null)
+    }
+
+/** The next time [alarm]'s schedule matches after [now], ignoring any skip. */
+fun nextOccurrence(alarm: Alarm, now: ZonedDateTime): ZonedDateTime {
     var candidate = now.withHour(alarm.hour).withMinute(alarm.minute).withSecond(0).withNano(0)
     if (!candidate.isAfter(now)) candidate = candidate.plusDays(1)
     if (alarm.days.isEmpty()) return candidate
